@@ -8,11 +8,11 @@ theme = "PaperMod"
 [params]
 ShowToc = true
 TocOpen = true
-ShowReadingTime = true
+ShowReadingTime = false
 ShowBreadCrumbs = true
 ShowCodeCopyButtons = true
 ShowPostNavLinks = true
-ShowWordCount = true
+ShowWordCount = false
   [params.assets]
   disableFingerprinting = true
 
