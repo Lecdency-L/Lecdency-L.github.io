@@ -13,6 +13,8 @@ ShowBreadCrumbs = true
 ShowCodeCopyButtons = true
 ShowPostNavLinks = true
 ShowWordCount = true
+  [params.assets]
+  disableFingerprinting = true
 
 # 启用搜索
 [outputs]
