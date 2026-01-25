@@ -1,4 +1,5 @@
 baseURL = "https://lecdency-l.github.io/"
+relativeURLs = true
 languageCode = 'en-us'
 title = "Lecdency's Blog"
 theme = "PaperMod"
