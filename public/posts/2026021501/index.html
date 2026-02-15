@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto" data-theme="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>debug SOP | Lecdency&#39;s Blog</title>
+<meta name="keywords" content="技术, 工程, 更新中">
+<meta name="description" content="1 三种视角
+
+功能正确性（本地测试、单请求）
+并发稳定性（ToC）
+业务一致性（ToB）
+
+1.1 ToB和ToC的区别
+
+  
+      
+          维度
+          ToC
+          ToB
+      
+  
+  
+      
+          用户量
+          大
+          小
+      
+      
+          并发
+          高
+          中低
+      
+      
+          单笔价值
+          低
+          高
+      
+      
+          核心风险
+          系统崩溃
+          数据错误
+      
+      
+          Debug难点
+          性能与并发
+          业务与状态
+      
+  
+
+2 功能正确性
+2.1 调用链定位
+不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。
+客户端
+→ 网关
+→ 鉴权/限流
+→ 业务服务 Controller
+→ Service
+→ DAO
+→ 下游服务 / 数据库
+2.1.1 网关
+网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。
+构成
+客户端
+→ Spring Cloud Gateway（基于 Netty）
+→ 服务发现（Nacos）
+→ LoadBalancer 选实例
+→ 转发到目标服务
+
+  
+      
+          功能
+          使用组件
+      
+  
+  
+      
+          API 网关
+          Spring Cloud Gateway
+      
+      
+          服务注册
+          Nacos
+      
+      
+          客户端负载均衡
+          Spring Cloud LoadBalancer
+      
+      
+          WebSocket 转发
+          Gateway（Netty实例1） &#43; NettyService（Netty实例2）
+      
+      
+          跨域处理
+          Gateway 内置 CORS
+      
+  
+
+作用">
+<meta name="author" content="">
+<link rel="canonical" href="https://lecdency-l.github.io/posts/2026021501/">
+<link crossorigin="anonymous" href="https://lecdency-l.github.io/assets/css/stylesheet.css" rel="preload stylesheet" as="style">
+<link rel="icon" href="https://lecdency-l.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://lecdency-l.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://lecdency-l.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://lecdency-l.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="https://lecdency-l.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<link rel="alternate" hreflang="en" href="https://lecdency-l.github.io/posts/2026021501/">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --code-block-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+                color-scheme: dark;
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .toc {
+                background: var(--entry);
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            .list::-webkit-scrollbar-thumb {
+                border-color: var(--code-bg);
+            }
+        }
+
+    </style>
+</noscript>
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else if (localStorage.getItem("pref-theme") === "light") {
+       document.querySelector("html").dataset.theme = 'light';
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.querySelector("html").dataset.theme = 'dark';
+    } else {
+        document.querySelector("html").dataset.theme = 'light';
+    }
+
+</script><meta property="og:url" content="https://lecdency-l.github.io/posts/2026021501/">
+  <meta property="og:site_name" content="Lecdency&#39;s Blog">
+  <meta property="og:title" content="debug SOP">
+  <meta property="og:description" content="1 三种视角 功能正确性（本地测试、单请求） 并发稳定性（ToC） 业务一致性（ToB） 1.1 ToB和ToC的区别 维度 ToC ToB 用户量 大 小 并发 高 中低 单笔价值 低 高 核心风险 系统崩溃 数据错误 Debug难点 性能与并发 业务与状态 2 功能正确性 2.1 调用链定位 不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。
+客户端→ 网关→ 鉴权/限流→ 业务服务 Controller→ Service→ DAO→ 下游服务 / 数据库 2.1.1 网关 网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。
+构成
+客户端→ Spring Cloud Gateway（基于 Netty）→ 服务发现（Nacos）→ LoadBalancer 选实例→ 转发到目标服务 功能 使用组件 API 网关 Spring Cloud Gateway 服务注册 Nacos 客户端负载均衡 Spring Cloud LoadBalancer WebSocket 转发 Gateway（Netty实例1） &#43; NettyService（Netty实例2） 跨域处理 Gateway 内置 CORS 作用">
+  <meta property="og:locale" content="en-us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="posts">
+    <meta property="article:published_time" content="2026-02-15T13:56:35+08:00">
+    <meta property="article:modified_time" content="2026-02-15T13:56:35+08:00">
+    <meta property="article:tag" content="技术">
+    <meta property="article:tag" content="工程">
+    <meta property="article:tag" content="更新中">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="debug SOP">
+<meta name="twitter:description" content="1 三种视角
+
+功能正确性（本地测试、单请求）
+并发稳定性（ToC）
+业务一致性（ToB）
+
+1.1 ToB和ToC的区别
+
+  
+      
+          维度
+          ToC
+          ToB
+      
+  
+  
+      
+          用户量
+          大
+          小
+      
+      
+          并发
+          高
+          中低
+      
+      
+          单笔价值
+          低
+          高
+      
+      
+          核心风险
+          系统崩溃
+          数据错误
+      
+      
+          Debug难点
+          性能与并发
+          业务与状态
+      
+  
+
+2 功能正确性
+2.1 调用链定位
+不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。
+客户端
+→ 网关
+→ 鉴权/限流
+→ 业务服务 Controller
+→ Service
+→ DAO
+→ 下游服务 / 数据库
+2.1.1 网关
+网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。
+构成
+客户端
+→ Spring Cloud Gateway（基于 Netty）
+→ 服务发现（Nacos）
+→ LoadBalancer 选实例
+→ 转发到目标服务
+
+  
+      
+          功能
+          使用组件
+      
+  
+  
+      
+          API 网关
+          Spring Cloud Gateway
+      
+      
+          服务注册
+          Nacos
+      
+      
+          客户端负载均衡
+          Spring Cloud LoadBalancer
+      
+      
+          WebSocket 转发
+          Gateway（Netty实例1） &#43; NettyService（Netty实例2）
+      
+      
+          跨域处理
+          Gateway 内置 CORS
+      
+  
+
+作用">
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "https://lecdency-l.github.io/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "debug SOP",
+      "item": "https://lecdency-l.github.io/posts/2026021501/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "debug SOP",
+  "name": "debug SOP",
+  "description": "1 三种视角 功能正确性（本地测试、单请求） 并发稳定性（ToC） 业务一致性（ToB） 1.1 ToB和ToC的区别 维度 ToC ToB 用户量 大 小 并发 高 中低 单笔价值 低 高 核心风险 系统崩溃 数据错误 Debug难点 性能与并发 业务与状态 2 功能正确性 2.1 调用链定位 不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。\n客户端\r→ 网关\r→ 鉴权/限流\r→ 业务服务 Controller\r→ Service\r→ DAO\r→ 下游服务 / 数据库 2.1.1 网关 网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。\n构成\n客户端\r→ Spring Cloud Gateway（基于 Netty）\r→ 服务发现（Nacos）\r→ LoadBalancer 选实例\r→ 转发到目标服务 功能 使用组件 API 网关 Spring Cloud Gateway 服务注册 Nacos 客户端负载均衡 Spring Cloud LoadBalancer WebSocket 转发 Gateway（Netty实例1） + NettyService（Netty实例2） 跨域处理 Gateway 内置 CORS 作用\n",
+  "keywords": [
+    "技术", "工程", "更新中"
+  ],
+  "articleBody": "1 三种视角 功能正确性（本地测试、单请求） 并发稳定性（ToC） 业务一致性（ToB） 1.1 ToB和ToC的区别 维度 ToC ToB 用户量 大 小 并发 高 中低 单笔价值 低 高 核心风险 系统崩溃 数据错误 Debug难点 性能与并发 业务与状态 2 功能正确性 2.1 调用链定位 不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。\n客户端\r→ 网关\r→ 鉴权/限流\r→ 业务服务 Controller\r→ Service\r→ DAO\r→ 下游服务 / 数据库 2.1.1 网关 网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。\n构成\n客户端\r→ Spring Cloud Gateway（基于 Netty）\r→ 服务发现（Nacos）\r→ LoadBalancer 选实例\r→ 转发到目标服务 功能 使用组件 API 网关 Spring Cloud Gateway 服务注册 Nacos 客户端负载均衡 Spring Cloud LoadBalancer WebSocket 转发 Gateway（Netty实例1） + NettyService（Netty实例2） 跨域处理 Gateway 内置 CORS 作用\n路由分发/鉴权/限流（IP/用户/接口）/traceId/QPS\n鉴权也可以专门用一个模块来做\n使用\n1 先启动Nacos（服务目录）：所有服务启动时注册自己，GateWay从Nacos获得可用实例。\n2 启动存储、缓存、业务服务，将自己注册到nacos\nspring: application: name: AuthenticationService cloud: nacos: discovery: server-addr: 127.0.0.1:18375 # nacos运行在18375端口，去这个端口注册当前服务 ip: 127.0.0.1 port: 8082 GateWay模块：\nspring: application: name: gateway cloud: nacos: discovery: server-addr: 127.0.0.1:18375 # nacos运行在18375，提供可用实例 gateway: routes: - id: AuthenticationService uri: lb://AuthenticationService # 负载均衡模式，在可用实例之间选择 3 启动GateWayApplication.java（整个模块的关键信息都在配置文件中）\n备注\n该网关使用少量线程处理大量请求，属于事件驱动模型。基于Spring WebFlux，底层是Netty，非阻塞IO，只有少量EventLoop线程。\n相对的，Servlet模型（Tomcat）是线程和请求一一对应的，线程阻塞等待IO，执行完才释放，可以使用ThreadLocal。\n得出结论：阻塞代码会拖死整个事件循环线程\n所以不要在网关查数据库/执行复杂逻辑；可以做：路由/鉴权/限流/Header 处理\nCORS（cross-origin resource sharing）\nCORS 是为了防止：比如同时登录了银行网站和恶意网站，恶意网站通过cookie对银行服务器发送恶意请求（可能生成响应，但是会被浏览器拦截）从而能防止恶意网站在浏览器环境下，利用用户的登录状态读取敏感数据\nCORS 保护的是“数据读取”，不是“状态变更”。\n前端只访问网关，所以在网关配置CORS\nglobalcors: cors-configurations: '[/**]': allowedOrigins: - \"http://localhost:5137\" # 前端运行在5137端口，允许其访问网关 allowedMethods: - GET - POST CORS是浏览器策略，对curl/postman等无效。\n2.1.2 服务层功能性问题 环境\n运行环境 ≠ 运行环境\n典型表现：编译通过 + 运行报 NoSuchMethodError/ClassNotFoundException\n原因：JDK版本和某些依赖库不兼容/库的问题/本地和服务器classpath不一致\n请求上下文\n客户端分三类：\r- 浏览器\r- 脚本工具\r- 服务间调用 表现：本地curl/postman正常，网页版工具异常\n浏览器环境和非浏览器环境的差异\n包括：CORS/Cookies/Header等问题\n类型系统\nJSON是弱类型，Java是强类型。\nJSON 传输层无类型约束，Java 反序列化依赖字段定义\n表现：JSON 里 userId 是字符串，Java 接口写成 Integer，雪花算法 Long 被截断\n总结\n确认运行环境一致 确认请求来源一致 确认类型边界一致 ",
+  "wordCount" : "199",
+  "inLanguage": "en",
+  "datePublished": "2026-02-15T13:56:35+08:00",
+  "dateModified": "2026-02-15T13:56:35+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://lecdency-l.github.io/posts/2026021501/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Lecdency's Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://lecdency-l.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+<body id="top">
+    <header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://lecdency-l.github.io/" accesskey="h" title="Lecdency&#39;s Blog (Alt + H)">Lecdency&#39;s Blog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)" aria-label="Toggle theme">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+            <li>
+                <a href="https://lecdency-l.github.io/archives/" title="归档">
+                    <span>归档</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://lecdency-l.github.io/tags/" title="标签">
+                    <span>标签</span>
+                </a>
+            </li>
+            <li>
+                <a href="https://lecdency-l.github.io/search/" title="搜索">
+                    <span>搜索</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    <div class="breadcrumbs"><a href="https://lecdency-l.github.io/">Home</a>&nbsp;»&nbsp;<a href="https://lecdency-l.github.io/posts/">Posts</a></div>
+    <h1 class="post-title entry-hint-parent">
+      debug SOP
+    </h1>
+    <div class="post-meta"><span title='2026-02-15 13:56:35 +0800 CST'>February 15, 2026</span>
+
+</div>
+  </header> <div class="toc">
+    <details  open>
+        <summary accesskey="c" title="(Alt + C)">
+            <span class="details">Table of Contents</span>
+        </summary>
+
+        <div class="inner"><ul>
+                <li>
+                    <a href="#1-%e4%b8%89%e7%a7%8d%e8%a7%86%e8%a7%92" aria-label="1 三种视角">1 三种视角</a><ul>
+                        
+                <li>
+                    <a href="#11-tob%e5%92%8ctoc%e7%9a%84%e5%8c%ba%e5%88%ab" aria-label="1.1 ToB和ToC的区别">1.1 ToB和ToC的区别</a></li></ul>
+                </li>
+                <li>
+                    <a href="#2-%e5%8a%9f%e8%83%bd%e6%ad%a3%e7%a1%ae%e6%80%a7" aria-label="2 功能正确性">2 功能正确性</a><ul>
+                        
+                <li>
+                    <a href="#21-%e8%b0%83%e7%94%a8%e9%93%be%e5%ae%9a%e4%bd%8d" aria-label="2.1 调用链定位">2.1 调用链定位</a><ul>
+                        
+                <li>
+                    <a href="#211-%e7%bd%91%e5%85%b3" aria-label="2.1.1 网关">2.1.1 网关</a></li>
+                <li>
+                    <a href="#212-%e6%9c%8d%e5%8a%a1%e5%b1%82%e5%8a%9f%e8%83%bd%e6%80%a7%e9%97%ae%e9%a2%98" aria-label="2.1.2 服务层功能性问题">2.1.2 服务层功能性问题</a>
+                </li>
+            </ul>
+            </li>
+            </ul>
+            </li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+  <div class="post-content"><h2 id="1-三种视角">1 三种视角<a hidden class="anchor" aria-hidden="true" href="#1-三种视角">#</a></h2>
+<ol>
+<li>功能正确性（本地测试、单请求）</li>
+<li>并发稳定性（ToC）</li>
+<li>业务一致性（ToB）</li>
+</ol>
+<h3 id="11-tob和toc的区别">1.1 ToB和ToC的区别<a hidden class="anchor" aria-hidden="true" href="#11-tob和toc的区别">#</a></h3>
+<table>
+  <thead>
+      <tr>
+          <th>维度</th>
+          <th>ToC</th>
+          <th>ToB</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>用户量</td>
+          <td>大</td>
+          <td>小</td>
+      </tr>
+      <tr>
+          <td>并发</td>
+          <td>高</td>
+          <td>中低</td>
+      </tr>
+      <tr>
+          <td>单笔价值</td>
+          <td>低</td>
+          <td>高</td>
+      </tr>
+      <tr>
+          <td>核心风险</td>
+          <td>系统崩溃</td>
+          <td>数据错误</td>
+      </tr>
+      <tr>
+          <td>Debug难点</td>
+          <td>性能与并发</td>
+          <td>业务与状态</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="2-功能正确性">2 功能正确性<a hidden class="anchor" aria-hidden="true" href="#2-功能正确性">#</a></h2>
+<h3 id="21-调用链定位">2.1 调用链定位<a hidden class="anchor" aria-hidden="true" href="#21-调用链定位">#</a></h3>
+<p>不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。</p>
+<pre tabindex="0"><code>客户端
+→ 网关
+→ 鉴权/限流
+→ 业务服务 Controller
+→ Service
+→ DAO
+→ 下游服务 / 数据库
+</code></pre><h4 id="211-网关">2.1.1 网关<a hidden class="anchor" aria-hidden="true" href="#211-网关">#</a></h4>
+<p>网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。</p>
+<p><strong>构成</strong></p>
+<pre tabindex="0"><code>客户端
+→ Spring Cloud Gateway（基于 Netty）
+→ 服务发现（Nacos）
+→ LoadBalancer 选实例
+→ 转发到目标服务
+</code></pre><table>
+  <thead>
+      <tr>
+          <th>功能</th>
+          <th>使用组件</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>API 网关</td>
+          <td>Spring Cloud Gateway</td>
+      </tr>
+      <tr>
+          <td>服务注册</td>
+          <td>Nacos</td>
+      </tr>
+      <tr>
+          <td>客户端负载均衡</td>
+          <td>Spring Cloud LoadBalancer</td>
+      </tr>
+      <tr>
+          <td>WebSocket 转发</td>
+          <td>Gateway（Netty实例1） + NettyService（Netty实例2）</td>
+      </tr>
+      <tr>
+          <td>跨域处理</td>
+          <td>Gateway 内置 CORS</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>作用</strong></p>
+<p>路由分发/鉴权/限流（IP/用户/接口）/traceId/QPS</p>
+<p>鉴权也可以专门用一个模块来做</p>
+<p><strong>使用</strong></p>
+<p>1
+先启动Nacos（服务目录）：所有服务启动时注册自己，GateWay从Nacos获得可用实例。</p>
+<p>2
+启动存储、缓存、业务服务，将自己注册到nacos</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">spring</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">application</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">AuthenticationService</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">cloud</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">nacos</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">discovery</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">server-addr</span>: <span style="color:#ae81ff">127.0.0.1</span>:<span style="color:#ae81ff">18375</span> <span style="color:#75715e"># nacos运行在18375端口，去这个端口注册当前服务</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">ip</span>: <span style="color:#ae81ff">127.0.0.1</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">port</span>: <span style="color:#ae81ff">8082</span>
+</span></span></code></pre></div><p>GateWay模块：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">spring</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">application</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">gateway</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">cloud</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">nacos</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">discovery</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">server-addr</span>: <span style="color:#ae81ff">127.0.0.1</span>:<span style="color:#ae81ff">18375</span>  <span style="color:#75715e"># nacos运行在18375，提供可用实例</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">gateway</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">routes</span>:
+</span></span><span style="display:flex;"><span>        - <span style="color:#f92672">id</span>: <span style="color:#ae81ff">AuthenticationService</span>
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">uri</span>: <span style="color:#ae81ff">lb://AuthenticationService</span> <span style="color:#75715e"># 负载均衡模式，在可用实例之间选择</span>
+</span></span></code></pre></div><p>3
+启动GateWayApplication.java（整个模块的关键信息都在配置文件中）</p>
+<p><strong>备注</strong></p>
+<p>该网关使用少量线程处理大量请求，属于事件驱动模型。基于Spring WebFlux，底层是Netty，非阻塞IO，只有少量EventLoop线程。</p>
+<p>相对的，Servlet模型（Tomcat）是线程和请求一一对应的，线程阻塞等待IO，执行完才释放，可以使用ThreadLocal。</p>
+<p>得出结论：阻塞代码会拖死整个事件循环线程</p>
+<p>所以不要在网关查数据库/执行复杂逻辑；可以做：路由/鉴权/限流/Header 处理</p>
+<p>CORS（cross-origin resource sharing）</p>
+<p>CORS 是为了防止：比如同时登录了银行网站和恶意网站，恶意网站通过cookie对银行服务器发送恶意请求（可能生成响应，但是会被浏览器拦截）从而能防止恶意网站在浏览器环境下，利用用户的登录状态读取敏感数据</p>
+<p>CORS 保护的是“数据读取”，不是“状态变更”。</p>
+<p>前端只访问网关，所以在网关配置CORS</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-yaml" data-lang="yaml"><span style="display:flex;"><span><span style="color:#f92672">globalcors</span>:
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">cors-configurations</span>:
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#39;[/**]&#39;</span>:
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">allowedOrigins</span>:
+</span></span><span style="display:flex;"><span>        - <span style="color:#e6db74">&#34;http://localhost:5137&#34;</span> <span style="color:#75715e"># 前端运行在5137端口，允许其访问网关</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">allowedMethods</span>:
+</span></span><span style="display:flex;"><span>        - <span style="color:#ae81ff">GET</span>
+</span></span><span style="display:flex;"><span>        - <span style="color:#ae81ff">POST</span>
+</span></span></code></pre></div><p>CORS是浏览器策略，对curl/postman等无效。</p>
+<h4 id="212-服务层功能性问题">2.1.2 服务层功能性问题<a hidden class="anchor" aria-hidden="true" href="#212-服务层功能性问题">#</a></h4>
+<p><strong>环境</strong></p>
+<p>运行环境 ≠ 运行环境</p>
+<p>典型表现：编译通过 + 运行报 NoSuchMethodError/ClassNotFoundException</p>
+<p>原因：JDK版本和某些依赖库不兼容/库的问题/本地和服务器classpath不一致</p>
+<p><strong>请求上下文</strong></p>
+<pre tabindex="0"><code>客户端分三类：
+- 浏览器
+- 脚本工具
+- 服务间调用
+</code></pre><p>表现：本地curl/postman正常，网页版工具异常</p>
+<p>浏览器环境和非浏览器环境的差异</p>
+<p>包括：CORS/Cookies/Header等问题</p>
+<p><strong>类型系统</strong></p>
+<p>JSON是弱类型，Java是强类型。</p>
+<p>JSON 传输层无类型约束，Java 反序列化依赖字段定义</p>
+<p>表现：JSON 里 userId 是字符串，Java 接口写成 Integer，雪花算法 Long 被截断</p>
+<p><strong>总结</strong></p>
+<ol>
+<li>确认运行环境一致</li>
+<li>确认请求来源一致</li>
+<li>确认类型边界一致</li>
+</ol>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+      <li><a href="https://lecdency-l.github.io/tags/%E6%8A%80%E6%9C%AF/">技术</a></li>
+      <li><a href="https://lecdency-l.github.io/tags/%E5%B7%A5%E7%A8%8B/">工程</a></li>
+      <li><a href="https://lecdency-l.github.io/tags/%E6%9B%B4%E6%96%B0%E4%B8%AD/">更新中</a></li>
+    </ul>
+<nav class="paginav">
+  <a class="next" href="https://lecdency-l.github.io/posts/2026012601/">
+    <span class="title">Next »</span>
+    <br>
+    <span>行动分析书写模板</span>
+  </a>
+</nav>
+
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+        <span>&copy; 2026 <a href="https://lecdency-l.github.io/">Lecdency&#39;s Blog</a></span> · 
+
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu');
+    if (menu) {
+        
+        const scrollPosition = localStorage.getItem("menu-scroll-position");
+        if (scrollPosition) {
+            menu.scrollLeft = parseInt(scrollPosition, 10);
+        }
+        
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const html = document.querySelector("html");
+        if (html.dataset.theme === "dark") {
+            html.dataset.theme = 'light';
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            html.dataset.theme = 'dark';
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+<script>
+    document.querySelectorAll('pre > code').forEach((codeblock) => {
+        const container = codeblock.parentNode.parentNode;
+
+        const copybutton = document.createElement('button');
+        copybutton.classList.add('copy-code');
+        copybutton.innerHTML = 'copy';
+
+        function copyingDone() {
+            copybutton.innerHTML = 'copied!';
+            setTimeout(() => {
+                copybutton.innerHTML = 'copy';
+            }, 2000);
+        }
+
+        copybutton.addEventListener('click', (cb) => {
+            if ('clipboard' in navigator) {
+                navigator.clipboard.writeText(codeblock.textContent);
+                copyingDone();
+                return;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(codeblock);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            try {
+                document.execCommand('copy');
+                copyingDone();
+            } catch (e) { };
+            selection.removeRange(range);
+        });
+
+        if (container.classList.contains("highlight")) {
+            container.appendChild(copybutton);
+        } else if (container.parentNode.firstChild == container) {
+            
+        } else if (codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName == "TABLE") {
+            
+            codeblock.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(copybutton);
+        } else {
+            
+            codeblock.parentNode.appendChild(copybutton);
+        }
+    });
+</script>
+</body>
+
+</html>
