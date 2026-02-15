@@ -152,6 +152,22 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
+    <h2 class="entry-hint-parent">debug SOP
+    </h2>
+  </header>
+  <div class="entry-content">
+    <p>1 三种视角 功能正确性（本地测试、单请求） 并发稳定性（ToC） 业务一致性（ToB） 1.1 ToB和ToC的区别 维度 ToC ToB 用户量 大 小 并发 高 中低 单笔价值 低 高 核心风险 系统崩溃 数据错误 Debug难点 性能与并发 业务与状态 2 功能正确性 2.1 调用链定位 不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。
+客户端→ 网关→ 鉴权/限流→ 业务服务 Controller→ Service→ DAO→ 下游服务 / 数据库 2.1.1 网关 网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。
+构成
+客户端→ Spring Cloud Gateway（基于 Netty）→ 服务发现（Nacos）→ LoadBalancer 选实例→ 转发到目标服务 功能 使用组件 API 网关 Spring Cloud Gateway 服务注册 Nacos 客户端负载均衡 Spring Cloud LoadBalancer WebSocket 转发 Gateway（Netty实例1） &#43; NettyService（Netty实例2） 跨域处理 Gateway 内置 CORS 作用
+...</p>
+  </div>
+  <footer class="entry-footer"><span title='2026-02-15 13:56:35 +0800 CST'>February 15, 2026</span></footer>
+  <a class="entry-link" aria-label="post link to debug SOP" href="https://lecdency-l.github.io/posts/2026021501/"></a>
+</article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
     <h2 class="entry-hint-parent">行动分析书写模板
     </h2>
   </header>
