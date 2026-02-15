@@ -1,4 +1,95 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Lecdency's Blog</title><link>https://lecdency-l.github.io/posts/</link><description>Recent content in Posts on Lecdency's Blog</description><generator>Hugo</generator><language>en-us</language><lastBuildDate>Mon, 26 Jan 2026 00:41:35 +0800</lastBuildDate><atom:link href="https://lecdency-l.github.io/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>行动分析书写模板</title><link>https://lecdency-l.github.io/posts/2026012601/</link><pubDate>Mon, 26 Jan 2026 00:41:35 +0800</pubDate><guid>https://lecdency-l.github.io/posts/2026012601/</guid><description>&lt;h2 id="1-收益-成本分析"&gt;1 收益-成本分析&lt;/h2&gt;
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Lecdency's Blog</title><link>https://lecdency-l.github.io/posts/</link><description>Recent content in Posts on Lecdency's Blog</description><generator>Hugo</generator><language>en-us</language><lastBuildDate>Sun, 15 Feb 2026 13:56:35 +0800</lastBuildDate><atom:link href="https://lecdency-l.github.io/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>debug SOP</title><link>https://lecdency-l.github.io/posts/2026021501/</link><pubDate>Sun, 15 Feb 2026 13:56:35 +0800</pubDate><guid>https://lecdency-l.github.io/posts/2026021501/</guid><description>&lt;h2 id="1-三种视角"&gt;1 三种视角&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;功能正确性（本地测试、单请求）&lt;/li&gt;
+&lt;li&gt;并发稳定性（ToC）&lt;/li&gt;
+&lt;li&gt;业务一致性（ToB）&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id="11-tob和toc的区别"&gt;1.1 ToB和ToC的区别&lt;/h3&gt;
+&lt;table&gt;
+ &lt;thead&gt;
+ &lt;tr&gt;
+ &lt;th&gt;维度&lt;/th&gt;
+ &lt;th&gt;ToC&lt;/th&gt;
+ &lt;th&gt;ToB&lt;/th&gt;
+ &lt;/tr&gt;
+ &lt;/thead&gt;
+ &lt;tbody&gt;
+ &lt;tr&gt;
+ &lt;td&gt;用户量&lt;/td&gt;
+ &lt;td&gt;大&lt;/td&gt;
+ &lt;td&gt;小&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;并发&lt;/td&gt;
+ &lt;td&gt;高&lt;/td&gt;
+ &lt;td&gt;中低&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;单笔价值&lt;/td&gt;
+ &lt;td&gt;低&lt;/td&gt;
+ &lt;td&gt;高&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;核心风险&lt;/td&gt;
+ &lt;td&gt;系统崩溃&lt;/td&gt;
+ &lt;td&gt;数据错误&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;Debug难点&lt;/td&gt;
+ &lt;td&gt;性能与并发&lt;/td&gt;
+ &lt;td&gt;业务与状态&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id="2-功能正确性"&gt;2 功能正确性&lt;/h2&gt;
+&lt;h3 id="21-调用链定位"&gt;2.1 调用链定位&lt;/h3&gt;
+&lt;p&gt;不要一上来打断点，因为断点只对当前进程有效，而问题可能发生在网关、限流器、熔断器或上游服务。&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;客户端
+→ 网关
+→ 鉴权/限流
+→ 业务服务 Controller
+→ Service
+→ DAO
+→ 下游服务 / 数据库
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id="211-网关"&gt;2.1.1 网关&lt;/h4&gt;
+&lt;p&gt;网关是整个微服务系统的“唯一入口”，它不做业务，只做流量分发与横切控制。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;构成&lt;/strong&gt;&lt;/p&gt;
+&lt;pre tabindex="0"&gt;&lt;code&gt;客户端
+→ Spring Cloud Gateway（基于 Netty）
+→ 服务发现（Nacos）
+→ LoadBalancer 选实例
+→ 转发到目标服务
+&lt;/code&gt;&lt;/pre&gt;&lt;table&gt;
+ &lt;thead&gt;
+ &lt;tr&gt;
+ &lt;th&gt;功能&lt;/th&gt;
+ &lt;th&gt;使用组件&lt;/th&gt;
+ &lt;/tr&gt;
+ &lt;/thead&gt;
+ &lt;tbody&gt;
+ &lt;tr&gt;
+ &lt;td&gt;API 网关&lt;/td&gt;
+ &lt;td&gt;Spring Cloud Gateway&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;服务注册&lt;/td&gt;
+ &lt;td&gt;Nacos&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;客户端负载均衡&lt;/td&gt;
+ &lt;td&gt;Spring Cloud LoadBalancer&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;WebSocket 转发&lt;/td&gt;
+ &lt;td&gt;Gateway（Netty实例1） + NettyService（Netty实例2）&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;tr&gt;
+ &lt;td&gt;跨域处理&lt;/td&gt;
+ &lt;td&gt;Gateway 内置 CORS&lt;/td&gt;
+ &lt;/tr&gt;
+ &lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;作用&lt;/strong&gt;&lt;/p&gt;</description></item><item><title>行动分析书写模板</title><link>https://lecdency-l.github.io/posts/2026012601/</link><pubDate>Mon, 26 Jan 2026 00:41:35 +0800</pubDate><guid>https://lecdency-l.github.io/posts/2026012601/</guid><description>&lt;h2 id="1-收益-成本分析"&gt;1 收益-成本分析&lt;/h2&gt;
 &lt;ol&gt;
 &lt;li&gt;
 &lt;p&gt;最近，我需要做选择的一件事情是：&lt;/p&gt;
